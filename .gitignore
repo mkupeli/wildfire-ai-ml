@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# Data (büyük dosyalar versiyonlanmaz)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/beynam/*
+!data/beynam/.gitkeep
+
+# Models (büyük dosyalar versiyonlanmaz)
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.bin
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

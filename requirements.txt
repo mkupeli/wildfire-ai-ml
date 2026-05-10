@@ -1,0 +1,23 @@
+# Deep learning
+torch>=2.3
+torchvision>=0.18
+# Model export
+onnx>=1.16
+onnxruntime>=1.18
+# Numerics
+numpy>=1.26
+Pillow>=10
+# Augmentation
+albumentations>=1.4
+# Tabular models (risk score)
+xgboost>=2.0
+catboost>=1.2
+scikit-learn>=1.4
+shap>=0.45
+# Dataset loading
+huggingface_hub>=0.23
+datasets>=2.19
+# Dev
+pytest>=8
+ruff>=0.5
+jupyter>=1.0

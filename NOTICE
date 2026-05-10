@@ -1,0 +1,19 @@
+wildfire-ai-ml
+Copyright 2026 Wildfire-AI contributors
+
+Licensed under the Apache License, Version 2.0.
+
+This product depends on or builds upon:
+- PyTorch (BSD)
+- ONNX (Apache 2.0)
+- ONNX Runtime (MIT)
+- PyroNear / pyro-vision (Apache 2.0) — fine-tune base
+- pyro-sdis dataset (Apache 2.0)
+- D-Fire dataset
+- XGBoost (Apache 2.0)
+- CatBoost (Apache 2.0)
+- scikit-learn (BSD)
+- SHAP (MIT)
+- Hugging Face datasets (Apache 2.0)
+
+See CREDITS.md for the full list with URLs.
