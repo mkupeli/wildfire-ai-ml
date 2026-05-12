@@ -13,6 +13,7 @@ albumentations>=1.4
 xgboost>=2.0
 catboost>=1.2
 scikit-learn>=1.4
+opencv-python-headless>=4.8
 shap>=0.45
 # Dataset loading
 huggingface_hub>=0.23
