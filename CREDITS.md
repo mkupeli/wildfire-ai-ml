@@ -23,4 +23,7 @@ This project is built on top of the following open-source libraries, datasets, a
 | Cell2Fire | BSD-style | https://github.com/cell2fire/Cell2Fire | Yayılım simülasyonu / spread simulation |
 | Open-Meteo | CC BY 4.0 | https://open-meteo.com | Meteoroloji / meteorology |
 | OpenStreetMap | ODbL | https://www.openstreetmap.org | Vektör harita / vector map |
+| skl2onnx | MIT | https://github.com/onnx/sklearn-onnx | ONNX export |
+| onnxmltools | MIT | https://github.com/onnx/onnxmltools | XGBoost ONNX converter |
+| matplotlib | PSF | https://matplotlib.org | SHAP plot rendering |
 | Synthetic data generator | Apache 2.0 (this repo) | — | Sprint 4-A PoC placeholder; gerçek veri Sprint 5'te WorldCover/DEM/FIRMS/Open-Meteo ile değiştirilir |

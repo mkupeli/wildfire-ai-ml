@@ -4,6 +4,10 @@ torchvision>=0.18
 # Model export
 onnx>=1.16
 onnxruntime>=1.18
+skl2onnx>=1.17
+onnxmltools>=1.11
+onnxconverter-common>=1.13
+matplotlib>=3.8
 # Numerics
 numpy>=1.26
 pandas>=2.2

@@ -120,3 +120,28 @@ FEATURE_SCHEMA: dict = {
 
 # Gelecek (Sprint 5 gerçek MGM verisi):
 # FUTURE_FEATURES = ["dmc", "dc", "isi", "bui", "fwi_index", "dsr"]
+
+
+@dataclass
+class XGBoostConfig:
+    """Hyperparametreler — Türkiye Akdeniz literatür referansı (Kavzoglu 2019)."""
+    n_estimators: int = 500
+    max_depth: int = 6
+    learning_rate: float = 0.05
+    scale_pos_weight: float | None = None  # None → train'de auto: neg/pos
+    min_child_weight: int = 5
+    subsample: float = 0.8
+    colsample_bytree: float = 0.8
+    gamma: float = 0.1
+    reg_alpha: float = 0.1
+    reg_lambda: float = 1.0
+    early_stopping_rounds: int = 30
+    eval_metric: str = "aucpr"
+    device: str = "cpu"
+    tree_method: str = "hist"
+    verbosity: int = 1
+
+
+# SHAP analizinde TreeExplainer.shap_values() çağrısı için max örnek sayısı.
+# n>2000 büyük dataset'lerde uzun süre + OOM riski (researcher onayı).
+SHAP_MAX_SAMPLES: int = 2000
