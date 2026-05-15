@@ -171,3 +171,171 @@ def test_load_from_csv_sets_attrs_source(tmp_path) -> None:
         f"df.attrs['data_version'] beklenen 'synthetic-test-v1', "
         f"got {df_loaded.attrs.get('data_version')!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 6-A: spatial_block_split testleri
+# ---------------------------------------------------------------------------
+
+import logging
+import numpy as np
+
+from wildfire_ml.risk.dataset import spatial_block_split
+
+
+def _make_spatial_df(n: int = 300, seed: int = 42) -> pd.DataFrame:
+    """lat/lon + TARGET_COLUMN içeren minimal gerçek-veri benzeri DataFrame."""
+    rng = np.random.default_rng(seed)
+    lats = rng.uniform(39.4, 39.6, size=n)
+    lons = rng.uniform(32.7, 33.0, size=n)
+    # %15 pozitif oran — düzenli dağılım
+    target = (rng.random(n) < 0.15).astype(np.int8)
+    return pd.DataFrame({"lat": lats, "lon": lons, TARGET_COLUMN: target})
+
+
+def test_spatial_block_split_no_leakage() -> None:
+    """Her val_df enlem aralığı train_df enlem aralığı ile örtüşmez (band sızdırmaz).
+
+    spatial_block_split qcut ile k enlem bandı kurar; her fold'da 1 bant val,
+    kalan k-1 bant train'e gider. Aynı enlem bandı hem train hem val'da OLMAZ.
+    """
+    df = _make_spatial_df(n=300)
+    folds = spatial_block_split(df, k=3, lat_col="lat")
+
+    assert len(folds) >= 2, "En az 2 fold beklendi."
+
+    for fold_i, (train_df, val_df) in enumerate(folds):
+        val_lats = set(val_df["lat"].tolist())
+        train_lats = set(train_df["lat"].tolist())
+        overlap = val_lats & train_lats
+        assert len(overlap) == 0, (
+            f"Fold {fold_i}: val_df ve train_df aynı enlem değerlerini paylaşıyor "
+            f"({len(overlap)} nokta). Uzamsal sızıntı var!"
+        )
+
+
+def test_spatial_block_split_covers_all() -> None:
+    """k fold val_df'leri birleşimi tüm satırları tam bir kez kapsar."""
+    df = _make_spatial_df(n=300)
+    folds = spatial_block_split(df, k=5, lat_col="lat")
+
+    # Tüm val index'lerini topla
+    val_indices_all: list[int] = []
+    for _, val_df in folds:
+        # reset_index(drop=True) sonrası orijinal index bilgisi kaybolabilir;
+        # lat değerleri eşsizse onları kullan; değilse satır içeriklerini.
+        val_indices_all.extend(val_df["lat"].tolist())
+
+    # Orijinal df'teki tüm lat değerleri val'da tam bir kez yer almalı
+    expected_lats = sorted(df["lat"].tolist())
+    actual_lats = sorted(val_indices_all)
+
+    assert len(actual_lats) == len(expected_lats), (
+        f"val_df birleşimi {len(actual_lats)} satır, orijinal df {len(expected_lats)} satır. "
+        "Bazı satırlar eksik veya çift sayılmış."
+    )
+    assert actual_lats == expected_lats, (
+        "val_df'lerin lat değerleri birleşimi orijinal df lat değerleriyle özdeş değil."
+    )
+
+
+def test_spatial_block_split_low_positive_reduces_k() -> None:
+    """Toplam pozitif <5*k iken k otomatik düşürülür ve warning loglanır.
+
+    k=5 ile total_pos=3 → koşul: total_pos < 5*k = 25 → k sürekli düşer
+    → k=2'de 5*2=10 > 3 hala sağlanır ama k=2 min sınırı → döngü durur.
+    Sonuç: folds sayısı <5 (max k=2).
+    """
+    rng = np.random.default_rng(0)
+    n = 20
+    lats = rng.uniform(39.4, 39.6, size=n)
+    target = np.zeros(n, dtype=np.int8)
+    target[:3] = 1  # Sadece 3 pozitif
+    df_low = pd.DataFrame({
+        "lat": lats,
+        "lon": rng.uniform(32.7, 33.0, size=n),
+        TARGET_COLUMN: target,
+    })
+
+    # caplog yerine el ile handler: caplog fixture burada yok
+    import logging as _log
+    handler_called: list[str] = []
+
+    class _H(_log.Handler):
+        def emit(self, record: _log.LogRecord) -> None:
+            if record.levelno >= _log.WARNING:
+                handler_called.append(record.getMessage())
+
+    root = _log.getLogger("wildfire_ml.risk.dataset")
+    h = _H()
+    root.addHandler(h)
+    root.setLevel(_log.WARNING)
+    try:
+        folds = spatial_block_split(df_low, k=5, lat_col="lat")
+    finally:
+        root.removeHandler(h)
+
+    # k düşürüldü → fold sayısı < 5 olmalı
+    assert len(folds) < 5, (
+        f"Düşük pozitif örnek ile k azaltılması beklendi; fold sayısı {len(folds)} (beklenen <5)."
+    )
+    # Warning mesajı loglandı
+    assert any("düşürülüyor" in m or "yetersiz" in m for m in handler_called), (
+        f"k azaltılırken warning loglanmadı. Yakalanan mesajlar: {handler_called}"
+    )
+
+
+def test_spatial_block_split_low_positive_reduces_k_caplog(caplog) -> None:
+    """caplog ile: düşük pozitif → k azaltma warning yakalanır."""
+    rng = np.random.default_rng(7)
+    n = 20
+    lats = rng.uniform(39.4, 39.6, size=n)
+    target = np.zeros(n, dtype=np.int8)
+    target[:3] = 1  # 3 pozitif, k=5 için 5*5=25 > 3
+
+    df_low = pd.DataFrame({
+        "lat": lats,
+        "lon": rng.uniform(32.7, 33.0, size=n),
+        TARGET_COLUMN: target,
+    })
+
+    with caplog.at_level(logging.WARNING, logger="wildfire_ml.risk.dataset"):
+        folds = spatial_block_split(df_low, k=5, lat_col="lat")
+
+    assert len(folds) < 5, (
+        f"k azaltılması beklendi → fold sayısı {len(folds)} < 5."
+    )
+    warning_messages = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any(
+        "düşürülüyor" in str(m) or "yetersiz" in str(m)
+        for m in warning_messages
+    ), (
+        f"'düşürülüyor' veya 'yetersiz' içeren WARNING loglanmadı. "
+        f"Yakalanan: {warning_messages}"
+    )
+
+
+def test_train_val_test_split_unchanged() -> None:
+    """Regression: train_val_test_split mevcut davranışı değişmedi.
+
+    spatial_block_split eklenmesi train_val_test_split'i etkilememeli.
+    60/20/20 oranlar ve stratifikasyon korunur.
+    """
+    cfg = RiskConfig(seed=42, n_samples=500)
+    df = load_risk_dataset(path=None, cfg=cfg)
+    train, val, test = train_val_test_split(df, cfg)
+    n = len(df)
+
+    # Oran kontrolü
+    assert abs(len(train) / n - 0.60) <= 0.05, f"Train ratio {len(train)/n:.3f}"
+    assert abs(len(val) / n - 0.20) <= 0.05, f"Val ratio {len(val)/n:.3f}"
+    assert abs(len(test) / n - 0.20) <= 0.05, f"Test ratio {len(test)/n:.3f}"
+    assert len(train) + len(val) + len(test) == n, "Toplam satır korunmalı"
+
+    # Stratifikasyon: TARGET_COLUMN oranı ±5%
+    overall_rate = df[TARGET_COLUMN].mean()
+    for name, split in [("train", train), ("val", val), ("test", test)]:
+        rate = split[TARGET_COLUMN].mean()
+        assert abs(rate - overall_rate) <= 0.05, (
+            f"{name} pozitif oran {rate:.4f} vs genel {overall_rate:.4f}"
+        )

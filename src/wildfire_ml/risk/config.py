@@ -126,6 +126,27 @@ FEATURE_SCHEMA: dict = {
 
 
 @dataclass
+class RealDataConfig:
+    """Sprint 6-A gerçek-veri pipeline parametreleri.
+
+    Mevcut RiskConfig sentetik akış için DOKUNULMADAN bırakıldı; bu dataclass
+    yalnızca real-data fetch + label_builder + spatial CV altyapısını besler.
+
+    leakage_buffer_days = 31: firms_density_1yr ve days_since_last_fire
+    pencerelerinin sağ kenarı obs_date - 31g (label penceresi obs_date+1g
+    başladığından 30g tampon → label leakage önleme, Roberts et al. 2017
+    DOI:10.1111/ecog.02881).
+    """
+    label_window_days: int = 30
+    leakage_buffer_days: int = 31  # firms_density cutoff = obs_date - 31
+    firms_radius_m: float = 10000.0
+    firms_confidence_levels: tuple[str, ...] = ("nominal", "high")
+    obs_date_start: str = "2024-01-01"
+    obs_date_end: str = "2025-12-31"
+    spatial_cv_k: int = 5
+
+
+@dataclass
 class XGBoostConfig:
     """Hyperparametreler — Türkiye Akdeniz literatür referansı (Kavzoglu 2019)."""
     n_estimators: int = 500

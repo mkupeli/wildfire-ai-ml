@@ -18,8 +18,15 @@ This project is built on top of the following open-source libraries, datasets, a
 | Hugging Face datasets | Apache 2.0 | https://huggingface.co/docs/datasets | Dataset yükleme / dataset loading |
 | albumentations | MIT | https://albumentations.ai | Görüntü augmentasyonu / image augmentation |
 | NASA FIRMS | NASA Open Data Policy | https://firms.modaps.eosdis.nasa.gov | Aktif yangın hotspot / active fire hotspots |
-| Copernicus DEM | CC BY 4.0 | https://dataspace.copernicus.eu | Topografya / topography |
-| ESA WorldCover | CC BY 4.0 | https://esa-worldcover.org | Arazi örtüsü / land cover |
+| Copernicus DEM (web) | CC BY 4.0 | https://dataspace.copernicus.eu | Topografya / topography |
+| ESA WorldCover (web) | CC BY 4.0 | https://esa-worldcover.org | Arazi örtüsü / land cover |
+| Copernicus DEM GLO-30 (AWS S3) | CC BY 4.0 © DLR/Airbus/ESA | s3://copernicus-dem-30m | Topografya / topography |
+| ESA WorldCover v200 (AWS S3) | CC BY 4.0 | s3://esa-worldcover | Arazi örtüsü / land cover |
+| Open-Meteo Historical | CC BY 4.0 | https://archive-api.open-meteo.com | Geçmiş meteoroloji / historical weather |
+| Roberts et al. 2017 | Akademik / Academic | https://doi.org/10.1111/ecog.02881 | Spatial block CV + leakage tampon / spatial block CV + leakage buffer |
+| rasterio | BSD-3-Clause | https://rasterio.readthedocs.io | COG raster I/O |
+| pyproj | MIT | https://pyproj4.github.io/pyproj | Projeksiyon / projection |
+| httpx | BSD-3-Clause | https://www.python-httpx.org | HTTP istemci / HTTP client |
 | Cell2Fire | BSD-style | https://github.com/cell2fire/Cell2Fire | Yayılım simülasyonu / spread simulation |
 | Open-Meteo | CC BY 4.0 | https://open-meteo.com | Meteoroloji / meteorology |
 | OpenStreetMap | ODbL | https://www.openstreetmap.org | Vektör harita / vector map |
