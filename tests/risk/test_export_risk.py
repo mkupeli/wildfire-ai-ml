@@ -30,8 +30,8 @@ def export_result(tmp_path_factory):
         output_dir=out,
         run_shap=False,
     )
-    model_path = out / "risk_model_v1.ubj"
-    onnx_path = out / "risk_model_v1.onnx"
+    model_path = out / "risk_model_v2.ubj"
+    onnx_path = out / "risk_model_v2.onnx"
     export_risk_onnx(model_path, onnx_path)
     return model_path, onnx_path, out
 
@@ -56,7 +56,7 @@ def test_export_smoke_test_passes(export_result):
     # Fixture içinde zaten başarıyla çalıştı; exception fırlatılmış olsaydı
     # fixture setup aşamasında hata alırdık. Burada ek ikinci çağrı yapıyoruz.
     model_path, _, out = export_result
-    second_onnx = out / "risk_model_v1_smoke2.onnx"
+    second_onnx = out / "risk_model_v2_smoke2.onnx"
     # Exception => test fail
     export_risk_onnx(model_path, second_onnx)
 

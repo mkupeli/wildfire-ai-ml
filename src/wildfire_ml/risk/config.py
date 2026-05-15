@@ -24,13 +24,16 @@ class RiskConfig:
     target_positive_rate: float = 0.15
     test_size: float = 0.20
     val_size: float = 0.20  # train'in bu yüzdesi val olur (60/20/20 sonuç)
-    data_version: str = "synthetic-v1"
+    data_version: str = "synthetic-v2"
 
 
 SYNTHETIC_DATA_NOTE = (
     "WARNING: synthetic placeholder data, NOT real observations. "
-    "Use only for pipeline validation. Sprint 5 will replace with real "
-    "WorldCover + DEM + FIRMS + Open-Meteo data."
+    "Use only for pipeline validation. Sprint 5 minimum scope: cos(lat) "
+    "PREPROCESS_SYMMETRIC fix preprocess pipeline'a eklendi (Karar #6); "
+    "ancak sentetik slope üretimi (`rng.beta * 45.0`) gradient çağrısını "
+    "bypass ettiği için model ağırlıkları v1'e çok yakındır. Gerçek "
+    "WorldCover + DEM + FIRMS + Open-Meteo ile retrain Sprint 6."
 )
 
 TOPO_FEATURES: list[str] = [

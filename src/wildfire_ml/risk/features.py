@@ -6,6 +6,8 @@ PREPROCESS SYMMETRIC: Backend Sprint 4-C inference de bu fonksiyonları
 """
 from __future__ import annotations
 
+from math import radians as _radians, cos as _cos
+
 import numpy as np
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -26,16 +28,29 @@ def compute_vpd(temp_c: np.ndarray | float, rh_pct: np.ndarray | float) -> np.nd
     return np.clip(vpd, 0.0, 10.0).astype(np.float32)
 
 
-def compute_slope_aspect(elevation_grid: np.ndarray, res_m: float) -> tuple[np.ndarray, np.ndarray]:
+def compute_slope_aspect(
+    elevation_grid: np.ndarray,
+    res_m: float,
+    mid_lat: float = 39.5,
+) -> tuple[np.ndarray, np.ndarray]:
     """DEM grid'inden slope (deg) ve aspect (deg) hesapla — gradient based.
 
-    Sprint 5'te gerçek DEM raster için kullanılır.
-    NOTE: Dönülen slope/aspect değerlerinde clip uygulanmamıştır. slope_deg
-    teorik olarak 90 dereceye ulaşabilir; downstream kullanım [0, 60] clip
-    varsayıyorsa çağıran taraf clip etmeli. Sprint 5 DEM entegrasyonunda
-    gözden geçirilecek.
+    PREPROCESS SYMMETRIC (Karar #6): bbox orta enleminde cos(lat) faktörü
+    uygulanır; longitude derecesi enlemle birlikte daralır, bu yüzden
+    doğu-batı yönündeki örnekleme adımı `res_m / cos(mid_lat)` olur.
+    Kuzey-güney adımı (`res_m`) sabittir. Beynam (~39.5°N) default;
+    Kızılcahamam (~40.4°N) için çağrı `mid_lat=40.4` geçer. Backend
+    `wildfire-ai-backend/app/services/risk_feature_service.py:_compute_slope_aspect_sampled`
+    aynı formülü kullanır (Karar #6 PREPROCESS_SYMMETRIC).
+
+    Sprint 5'te gerçek DEM raster için kullanılır. NOTE: Dönülen slope/aspect
+    değerlerinde clip uygulanmamıştır. slope_deg teorik olarak 90 dereceye
+    ulaşabilir; downstream kullanım [0, 60] clip varsayıyorsa çağıran taraf
+    clip etmeli. Sprint 6 gerçek DEM entegrasyonunda gözden geçirilecek.
     """
-    dy, dx = np.gradient(elevation_grid, res_m, res_m)
+    dy_spacing = res_m  # kuzey-güney sabit
+    dx_spacing = res_m / _cos(_radians(mid_lat))  # doğu-batı cos(lat) düzeltmeli
+    dy, dx = np.gradient(elevation_grid, dy_spacing, dx_spacing)
     slope_rad = np.arctan(np.hypot(dx, dy))
     aspect_rad = np.arctan2(-dx, dy)  # north=0, clockwise
     slope_deg = np.rad2deg(slope_rad)

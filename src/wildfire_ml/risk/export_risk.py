@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""ONNX export for wildfire risk XGBoost model.
+"""ONNX export for wildfire risk XGBoost model (risk_model_v2).
 
 Output kontratı (Sprint 4-C backend için):
 - Input: 'features' float32 [N, len(FEATURE_COLUMNS)]  # = 24
 - Output: 'probabilities' float32 [N, 2]; risk_score = probabilities[:, 1]
+
+Sprint 5: model versiyon v2 — cos(lat) PREPROCESS_SYMMETRIC fix uygulandı
+(Karar #6). Default model/onnx adları `risk_model_v2.*`.
 """
 from __future__ import annotations
 
@@ -79,8 +82,8 @@ def export_risk_onnx(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export XGBoost risk model to ONNX")
-    parser.add_argument("--model-path", default="models/risk_model_v1.ubj")
-    parser.add_argument("--onnx-path", default="models/risk_model_v1.onnx")
+    parser.add_argument("--model-path", default="models/risk_model_v2.ubj")
+    parser.add_argument("--onnx-path", default="models/risk_model_v2.onnx")
     parser.add_argument("--opset", type=int, default=15)
     parser.add_argument("--atol", type=float, default=1e-4)
     args = parser.parse_args()

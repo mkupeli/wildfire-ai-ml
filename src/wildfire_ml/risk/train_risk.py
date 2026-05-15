@@ -90,7 +90,7 @@ def train_risk(
         verbose=False,
     )
 
-    model_path = output_dir / "risk_model_v1.ubj"
+    model_path = output_dir / "risk_model_v2.ubj"
     model.save_model(str(model_path))
     logger.info(f"Model saved: {model_path}")
 
@@ -112,7 +112,7 @@ def train_risk(
     }
 
     # Runtime model card
-    _write_runtime_card(output_dir / "risk_model_v1_card.md", metrics, xgb_cfg)
+    _write_runtime_card(output_dir / "risk_model_v2_card.md", metrics, xgb_cfg)
 
     # T2: schema.json kopyala — Sprint 4-C backend `models/risk_feature_schema.json` okuyacak.
     import shutil
@@ -134,7 +134,7 @@ def train_risk(
 
 def _write_runtime_card(path: Path, metrics: dict, xgb_cfg: XGBoostConfig) -> None:
     lines = [
-        "# Runtime Model Card — risk_model_v1",
+        "# Runtime Model Card — risk_model_v2",
         f"Trained: {metrics['trained_at']}",
         f"Test metrics: ROC-AUC={metrics['roc_auc']:.4f}, PR-AUC={metrics['pr_auc']:.4f}, "
         f"F1={metrics['f1']:.4f}, Precision={metrics['precision']:.4f}, Recall={metrics['recall']:.4f}",

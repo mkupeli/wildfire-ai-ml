@@ -67,11 +67,11 @@ def test_train_risk_returns_metrics(trained_result):
 # ---------------------------------------------------------------------------
 
 def test_train_risk_saves_model_file(trained_result):
-    """T-TR-2: output_dir/risk_model_v1.ubj oluşmalı."""
+    """T-TR-2: output_dir/risk_model_v2.ubj oluşmalı."""
     _, out = trained_result
-    model_path = out / "risk_model_v1.ubj"
-    assert model_path.exists(), f"risk_model_v1.ubj bulunamadı: {model_path}"
-    assert model_path.stat().st_size > 0, "risk_model_v1.ubj boş"
+    model_path = out / "risk_model_v2.ubj"
+    assert model_path.exists(), f"risk_model_v2.ubj bulunamadı: {model_path}"
+    assert model_path.stat().st_size > 0, "risk_model_v2.ubj boş"
 
 
 # ---------------------------------------------------------------------------
@@ -99,10 +99,10 @@ def test_train_risk_saves_schema_json(trained_result):
 # ---------------------------------------------------------------------------
 
 def test_train_risk_saves_runtime_card(trained_result):
-    """T-TR-4: risk_model_v1_card.md oluşmalı ve 'ROC-AUC' substring içermeli."""
+    """T-TR-4: risk_model_v2_card.md oluşmalı ve 'ROC-AUC' substring içermeli."""
     _, out = trained_result
-    card_path = out / "risk_model_v1_card.md"
-    assert card_path.exists(), f"risk_model_v1_card.md bulunamadı: {card_path}"
+    card_path = out / "risk_model_v2_card.md"
+    assert card_path.exists(), f"risk_model_v2_card.md bulunamadı: {card_path}"
     content = card_path.read_text(encoding="utf-8")
     assert "ROC-AUC" in content.upper(), (
         f"'ROC-AUC' metni card dosyasında bulunamadı.\nİçerik başı: {content[:200]}"
@@ -130,7 +130,7 @@ def test_train_risk_roc_auc_above_chance(trained_result):
 def test_feature_names_preserved_after_fit(trained_result):
     """T-TR-6: Kaydedilen model yüklenince feature_names_in_ == FEATURE_COLUMNS."""
     _, out = trained_result
-    model_path = out / "risk_model_v1.ubj"
+    model_path = out / "risk_model_v2.ubj"
     loaded_model = xgb.XGBClassifier()
     loaded_model.load_model(str(model_path))
 

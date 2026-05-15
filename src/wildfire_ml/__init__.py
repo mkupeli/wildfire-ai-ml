@@ -1,3 +1,3 @@
 """wildfire-ai-ml: training, evaluation, and ONNX export pipeline."""
 
-__version__ = "0.1.0a4"
+__version__ = "0.1.0a5"

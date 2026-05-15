@@ -33,7 +33,7 @@ def shap_inputs(tmp_path_factory):
 
     import xgboost as xgb
     model = xgb.XGBClassifier()
-    model.load_model(str(out / "risk_model_v1.ubj"))
+    model.load_model(str(out / "risk_model_v2.ubj"))
 
     # Aynı seed ile dataset yeniden üret → split
     cfg = RiskConfig(n_samples=200, seed=42)

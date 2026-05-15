@@ -133,6 +133,89 @@ def test_compute_slope_aspect_ramp() -> None:
 
 
 # ===========================================================================
+# Sprint 5 / N:6 regression: cos(lat) dx_spacing düzeltmesi
+# ===========================================================================
+
+def test_compute_slope_aspect_mid_lat_backward_compat() -> None:
+    """T-N6-1: mid_lat=39.5 default — parametresiz çağrı kırılmamalı.
+
+    compute_slope_aspect(dem, res_m=250.0) imzası Sprint 5'te mid_lat parametresi
+    aldı. Default değer 39.5 olduğundan eski çağrı biçimi değişmeden çalışmalı;
+    dönen sonuç mid_lat=39.5 ile açık çağrıyla özdeş olmalı.
+    """
+    dem = np.full((8, 8), 500.0)
+    dem[3:5, 3:5] = 600.0  # küçük tepe — sıfır olmayan slope üretir
+
+    slope_default, aspect_default = compute_slope_aspect(dem, res_m=250.0)
+    slope_explicit, aspect_explicit = compute_slope_aspect(dem, res_m=250.0, mid_lat=39.5)
+
+    np.testing.assert_array_equal(
+        slope_default, slope_explicit,
+        err_msg="Default mid_lat=39.5 ile açık mid_lat=39.5 slope çıktıları eşit olmalı.",
+    )
+    np.testing.assert_array_equal(
+        aspect_default, aspect_explicit,
+        err_msg="Default mid_lat=39.5 ile açık mid_lat=39.5 aspect çıktıları eşit olmalı.",
+    )
+
+
+def test_compute_slope_aspect_cos_lat_eastwest_ramp() -> None:
+    """T-N6-2: Doğu-batı ramp'ta 39.5°N, 45°N'den daha dik slope üretmeli.
+
+    dx_spacing = res_m / cos(mid_lat). cos(39.5°) > cos(45°) olduğundan
+    39.5°N'de dx_spacing daha küçük → aynı yükseklik değişimi daha dik görünür.
+    Beklenen slope_39 / slope_45 oranı ≈ cos(45°)/cos(39.5°) ≈ 0.707/0.772 ≈ 0.916'nın
+    tersi, yani ~1.09.
+    """
+    # Saf doğu-batı ramp: her sütunda +10m artış
+    dem_ew = np.tile(np.arange(0, 100, 10, dtype=np.float32), (5, 1))  # (5, 10) shape
+    slope_39, _ = compute_slope_aspect(dem_ew, res_m=250.0, mid_lat=39.5)
+    slope_45, _ = compute_slope_aspect(dem_ew, res_m=250.0, mid_lat=45.0)
+    # mid_lat=45 için dx_spacing = 250/cos(45°) daha büyük → dx gradient küçük → slope daha küçük
+    # cos(39.5°)/cos(45°) ≈ 0.772/0.707 ≈ 1.09 — slope_39 ~%9 daha dik
+    assert slope_39.mean() > slope_45.mean(), "39.5°N daha küçük dx_spacing → daha dik slope"
+    # Oran tolerans aralığında
+    ratio = slope_39.mean() / slope_45.mean()
+    assert 1.05 < ratio < 1.13, f"slope oranı {ratio} beklenen ~1.09 dışında"
+
+
+def test_compute_slope_aspect_cos_lat_correction_magnitude() -> None:
+    """T-N6-3: 39°N enleminde cos(lat) düzeltmesinin büyüklüğü ~%22-30.
+
+    mid_lat=0.0 (ekvator, cos=1 → düzeltme yok, eski/hatalı davranış) ile
+    mid_lat=39.5 (Beynam, doğru düzeltme) karşılaştırması.
+    Beynam'da longitude derecesi daralır → dx_spacing büyür → slope küçülür.
+    Göreli fark: (slope_eq − slope_correct) / slope_correct
+    Teorik: 1/cos(39.5°) − 1 ≈ 0.295 (%30'a yakın); tolere aralığı [15%, 35%].
+    """
+    dem_ew = np.tile(np.arange(0, 100, 10, dtype=np.float32), (5, 1))
+    # Hatalı yol: mid_lat=0 (ekvator, cos=1 → düzeltme yok = eski davranış)
+    slope_eq, _ = compute_slope_aspect(dem_ew, res_m=250.0, mid_lat=0.0)
+    # Doğru yol: mid_lat=39.5 (Beynam)
+    slope_correct, _ = compute_slope_aspect(dem_ew, res_m=250.0, mid_lat=39.5)
+    # Beynam'da longitude derecesi daralır → dx_spacing büyür → slope küçülür
+    # slope_eq daha küçük dx_spacing kullandığından daha dik; slope_correct daha sığ
+    rel_diff = (slope_eq.mean() - slope_correct.mean()) / slope_correct.mean()
+    assert 0.15 < rel_diff < 0.35, (
+        f"%22-30 hata magnitude beklenen [15%, 35%] dışında: {rel_diff:.2%}"
+    )
+
+
+def test_compute_slope_aspect_cos_lat_no_effect_on_ns_ramp() -> None:
+    """T-N6-4: Kuzey-güney ramp'ta mid_lat değişimi slope'u etkilememeli.
+
+    dy_spacing = res_m sabittir; mid_lat yalnızca dx_spacing'i (E-W) değiştirir.
+    Saf N-S ramp'ta dy gradient dominant, dx gradient sıfır → slope mid_lat'tan bağımsız.
+    """
+    # Saf kuzey-güney ramp: her satırda +10m artış
+    dem_ns = np.tile(np.arange(0, 50, 10, dtype=np.float32).reshape(-1, 1), (1, 5))
+    slope_39, _ = compute_slope_aspect(dem_ns, res_m=250.0, mid_lat=39.5)
+    slope_45, _ = compute_slope_aspect(dem_ns, res_m=250.0, mid_lat=45.0)
+    # N-S için dy_spacing değişmiyor → slope eşit olmalı
+    np.testing.assert_allclose(slope_39, slope_45, rtol=1e-5)
+
+
+# ===========================================================================
 # B2 regression: Van Wagner km/h dönüşümü
 # ===========================================================================
 
