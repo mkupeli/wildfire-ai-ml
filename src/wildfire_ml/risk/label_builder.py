@@ -94,8 +94,14 @@ def build_labels(
 
     # Confidence filtre: 'low' (sun glint) hariç; cfg.firms_confidence_levels
     # ('nominal','high'). Sütun yoksa filtre atlanır.
+    # VIIRS (SNPP/NOAA20) confidence tek harf kodlar: l/n/h. Bunlar
+    # low/nominal/high'a normalize edilir (gerçek FIRMS SP CSV'sinde
+    # doğrulandı, Sprint 6-B). Tam kelime değerler (sentetik veri) ve
+    # diğer formatlar (MODIS 0-100 sayısal → 6-C) olduğu gibi bırakılır.
     if "confidence" in fdf.columns:
         conf = fdf["confidence"].astype(str).str.strip().str.lower()
+        _viirs_map = {"l": "low", "n": "nominal", "h": "high"}
+        conf = conf.map(lambda c: _viirs_map.get(c, c))
         before = len(fdf)
         fdf = fdf[conf.isin([c.lower() for c in cfg.firms_confidence_levels])]
         logger.info(
