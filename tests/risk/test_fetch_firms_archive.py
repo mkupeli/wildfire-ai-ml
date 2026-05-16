@@ -465,3 +465,167 @@ def test_t1e_http_error_log_masking(tmp_path: Path, caplog) -> None:
     assert FAKE_KEY not in context_str, (
         f"Güvenlik: FIRMS_MAP_KEY __context__ mesajına sızdı: {context_str!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T3a: httpx INFO logu caplog'a sızmamalı (regression — fix öncesi kırmızı)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=False)
+def _clean_root_logger_filters():
+    """Root logger'a test sırasında eklenen filter'ları temizle.
+
+    _install_secret_filter() root logger'a _SecretRedactFilter ekliyor.
+    Test izolasyonu için her testten önce/sonra root filter listesi orijinal
+    haline döndürülür.
+    """
+    import logging as _logging
+
+    before = list(_logging.root.filters)
+    yield
+    # Test sonrası eklenen filter'ları kaldır
+    _logging.root.filters[:] = before
+
+
+@respx.mock
+def test_t3a_httpx_info_log_does_not_leak_secret(
+    tmp_path: Path, caplog, _clean_root_logger_filters
+) -> None:
+    """T3a (regression): fetch_firms_archive() sonrası caplog'da FAKE_KEY OLMAMALI.
+
+    Senaryo:
+      - respx 200 + geçerli CSV body mock (_VALID_CSV_BODY sabitini kullan).
+      - caplog TÜM logger'ları DEBUG seviyede yakalar (logger adı verilmez —
+        httpx dahil root yakalanır).
+      - httpx'in 'HTTP Request: GET <tam-url>' INFO logu FAKE_KEY içerir;
+        _SecretRedactFilter fix öncesinde bu log caplog'a sızardı.
+      - Fix sonrası: _install_secret_filter root logger'a eklenir →
+        httpx INFO logu maskelenir → FAKE_KEY caplog'da GÖRÜNMEZ.
+
+    Fix öncesi neden kırmızı olurdu:
+      _install_secret_filter olmadan httpx, URL'yi olduğu gibi loglar:
+      "HTTP Request: GET https://firms.../TEST_MAP_KEY_FAKE/... HTTP/1.1 200 OK"
+      Bu kayıt caplog.records'a girer → FAKE_KEY in caplog.text → AssertionError.
+    """
+    import logging
+
+    respx.get(url__startswith=FIRMS_API_BASE).mock(
+        return_value=httpx.Response(200, text=_VALID_CSV_BODY)
+    )
+
+    out_path = tmp_path / "firms_t3a.csv"
+
+    # logger adı VERİLMEZ — root yakalanır, httpx dahil tüm alt logger'lar
+    with caplog.at_level(logging.DEBUG):
+        with patch.object(time, "sleep", return_value=None):
+            _ffa.fetch_firms_archive(
+                bbox=(32.7, 39.4, 33.0, 39.6),
+                out_path=out_path,
+                source="VIIRS_SNPP_SP",
+                start_date="2024-06-01",
+                end_date="2024-06-07",
+                chunk_days=7,
+                max_retries=3,
+            )
+
+    # HER log kaydı için formatlanmış mesaj FAKE_KEY içermemeli
+    leaking_records = [
+        r for r in caplog.records if FAKE_KEY in r.getMessage()
+    ]
+    assert not leaking_records, (
+        f"Güvenlik regression: {len(leaking_records)} log kaydı FAKE_KEY içeriyor!\n"
+        + "\n".join(
+            f"  [{r.name}] {r.levelname}: {r.getMessage()!r}"
+            for r in leaking_records
+        )
+    )
+
+    # caplog.text bütünsel kontrolü (ek güvence)
+    assert FAKE_KEY not in caplog.text, (
+        f"Güvenlik regression: FAKE_KEY caplog.text içinde bulundu.\n"
+        f"caplog.text (ilk 500 karakter): {caplog.text[:500]!r}"
+    )
+
+    # Sanity: httpx gerçekten bir şey logladı mı? (test anlamlı mı?)
+    httpx_records = [r for r in caplog.records if r.name.startswith("httpx")]
+    assert len(httpx_records) >= 1, (
+        "Sanity: httpx hiç log üretmedi — test anlamlılığı sorgulanabilir. "
+        f"Tüm logger adları: {sorted({r.name for r in caplog.records})}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T3b: _SecretRedactFilter lazy %-format (record.args) maskeleme birim testi
+# ---------------------------------------------------------------------------
+
+def test_t3b_secret_redact_filter_lazy_format() -> None:
+    """T3b: _SecretRedactFilter doğrudan birim testi — lazy %-format maskeleme.
+
+    Senaryo:
+      - Elle LogRecord oluştur: msg='%s %s', args=(url_with_key, '200 OK').
+      - record.getMessage() lazy evaluation ile FAKE_KEY içeren string döner.
+      - _SecretRedactFilter(FAKE_KEY).filter(record) çağrılır.
+      - Beklenti: filter True döner; record.getMessage() artık FAKE_KEY içermez;
+        '***' içerir; record.args is None.
+
+    Fix öncesi neden kırmızı olurdu:
+      _SecretRedactFilter olmadan record.getMessage() ham %-format string döner
+      → FAKE_KEY kaçınılmaz → assert FAKE_KEY not in record.getMessage() çöker.
+
+    Ek senaryo — boş secret guard:
+      _SecretRedactFilter("").filter(record) → True döner, record.msg değişmez.
+    """
+    import logging as _logging
+
+    # --- Senaryo 1: normal maskeleme ---
+    url_with_key = f"GET https://example.com/{FAKE_KEY}/path"
+    record = _logging.LogRecord(
+        name="httpx",
+        level=_logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="HTTP Request: %s %s",
+        args=(url_with_key, "200 OK"),
+        exc_info=None,
+    )
+
+    # Filtreyi uygula
+    filt = _ffa._SecretRedactFilter(FAKE_KEY)
+    result = filt.filter(record)
+
+    assert result is True, "filter() her zaman True dönmeli"
+    formatted = record.getMessage()
+    assert FAKE_KEY not in formatted, (
+        f"FAKE_KEY maskelenmedi: {formatted!r}"
+    )
+    assert "***" in formatted, (
+        f"'***' maskeleme izi formatlanmış mesajda olmalı: {formatted!r}"
+    )
+    assert record.args is None, (
+        f"filter() sonrası record.args=None olmalı (lazy re-format engeli), "
+        f"got: {record.args!r}"
+    )
+
+    # --- Senaryo 2: boş secret — record değişmemeli ---
+    record2 = _logging.LogRecord(
+        name="httpx",
+        level=_logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="HTTP Request: %s %s",
+        args=(url_with_key, "200 OK"),
+        exc_info=None,
+    )
+    original_msg = record2.msg
+    original_args = record2.args
+
+    filt_empty = _ffa._SecretRedactFilter("")
+    result2 = filt_empty.filter(record2)
+
+    assert result2 is True, "Boş secret ile filter() True dönmeli"
+    assert record2.msg == original_msg, (
+        f"Boş secret: record.msg değişmemeli. got: {record2.msg!r}"
+    )
+    assert record2.args == original_args, (
+        f"Boş secret: record.args değişmemeli. got: {record2.args!r}"
+    )

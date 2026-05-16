@@ -32,6 +32,24 @@ import httpx
 
 logger = logging.getLogger("fetch_firms_archive")
 
+
+class _SecretRedactFilter(logging.Filter):
+    """Tüm log kayıtlarında secret'ı '***' ile maskeler (httpx URL dahil)."""
+
+    def __init__(self, secret: str) -> None:
+        super().__init__()
+        self._secret = secret
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not self._secret:
+            return True
+        msg = record.getMessage()
+        if self._secret in msg:
+            record.msg = msg.replace(self._secret, "***")
+            record.args = None
+        return True
+
+
 FIRMS_API_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 DEFAULT_BBOX = "32.7,39.4,33.0,39.6"  # Beynam: lon_min,lat_min,lon_max,lat_max
 DEFAULT_SOURCE = "VIIRS_SNPP_SP"  # Standard Processing (çok-kaynak birleştirme 6-C)
@@ -177,6 +195,29 @@ def _mask_url(url: str, map_key: str) -> str:
     return url
 
 
+def _install_secret_filter(secret: str) -> None:
+    """Secret redaction filter'ını httpx/httpcore logger'larına ekle.
+
+    `logging.root.addFilter` propagate eden CHILD logger (httpx) kayıtlarını
+    YAKALAMAZ: Python logging'de child_logger.handle() yalnızca child'ın
+    kendi filter'larını çalıştırır, propagation handler'lara gider; root
+    Logger.handle() hiç çağrılmaz. Bu yüzden filter doğrudan httpx/httpcore
+    child logger'larına eklenir — Logger.handle() içinde çalışır, hem main()
+    hem programatik (fetch_firms_archive() doğrudan) çağrı kapsanır, handler
+    bağımlılığı yoktur. Idempotent: aynı secret'lı filter tekrar eklenmez.
+    """
+    if not secret:
+        return
+    for name in ("httpx", "httpcore"):
+        lg = logging.getLogger(name)
+        if any(
+            isinstance(f, _SecretRedactFilter) and f._secret == secret
+            for f in lg.filters
+        ):
+            continue
+        lg.addFilter(_SecretRedactFilter(secret))
+
+
 def fetch_firms_archive(
     bbox: tuple[float, float, float, float],
     out_path: Path,
@@ -195,6 +236,7 @@ def fetch_firms_archive(
     import pandas as pd
 
     map_key = _get_firms_key()
+    _install_secret_filter(map_key)
     start = date.fromisoformat(start_date)
     end = date.fromisoformat(end_date)
     if start > end:
@@ -300,6 +342,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     bbox = _parse_bbox(args.bbox)
     fetch_firms_archive(
