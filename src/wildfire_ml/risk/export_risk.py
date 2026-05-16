@@ -49,6 +49,14 @@ def export_risk_onnx(
     model = xgb.XGBClassifier()
     model.load_model(str(model_path))
 
+    # onnxmltools XGBoost converter feature isimlerini desteklemez ('f%d'
+    # pattern bekler; gerçek-veri modeli DataFrame ile eğitildiğinden booster
+    # feature_names = FEATURE_COLUMNS). İsimleri temizle — ONNX input kontratı
+    # pozisyonel ('features' float32 [N, len(FEATURE_COLUMNS)]); backend
+    # schema.json sırasıyla pozisyonel besler, isim bağımsız.
+    booster = model.get_booster()
+    booster.feature_names = None
+
     # skl2onnx XGBClassifier converter'ını kaydet
     update_registered_converter(
         xgb.XGBClassifier,
@@ -59,10 +67,13 @@ def export_risk_onnx(
     )
 
     initial_type = [("features", FloatTensorType([None, len(FEATURE_COLUMNS)]))]
+    # ai.onnx.ml domain'i ayrı opset ister: yeni skl2onnx XGBoost converter
+    # ai.onnx.ml v5 üretebilir ama kütüphane v3'e kadar destekler →
+    # TreeEnsemble stabil v3'e sabitlenir; ana domain ('') opset korunur.
     onx = convert_sklearn(
         model,
         initial_types=initial_type,
-        target_opset=opset,
+        target_opset={"": opset, "ai.onnx.ml": 3},
         options={id(model): {"zipmap": False}},
     )
     onnx_path.write_bytes(onx.SerializeToString())

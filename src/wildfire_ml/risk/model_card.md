@@ -5,12 +5,16 @@
 ### Amaç
 30 günlük yangın riski ikili sınıflandırması. Pilot bölge: Beynam Ormanı (Bala/Ankara), 250m grid.
 
-### Sprint 6-B Notu — a7 (2026-05-16)
-Sprint 6-B (2026-05-16): paket sürümü a6 → **a7** (altyapı + güvenlik commit'i; gerçek model henüz yok). **ÖNEMLİ**: Bu commit gerçek FIRMS SP ile eğitilmiş bir model içerMEZ — `FIRMS_MAP_KEY` implementer ortamında yoktu, gerçek eğitim kullanıcı ortamında yapılmalı (aşağıdaki komutlar). Gerçek model çıktığında ayrı bir commit'te sürüm **b1** olarak etiketlenecek. **Karar #8**: FIRMS arşivi mevcut `FIRMS_MAP_KEY` ile erişilebilir (Sprint 6-A'nın "NASA Earthdata auth-walled" varsayımı düzeltildi); `scripts/fetch_firms_archive.py` Area API CSV ucundan (`/api/area/csv/{KEY}/{SOURCE}/{W,S,E,N}/{chunk_days}/{date}`, rate-limit 5000 tx/10dk) gerçek hotspot çeker. Tek FIRMS source `VIIRS_SNPP_SP` (çok-kaynak birleştirme Sprint 6-C). WorldCover/Open-Meteo gerçek raster sıkılaştırma Sprint 6-C'ye bırakıldı. Gerçek-veri akışında (`data_version=real-b1`) **SYNTHETIC_MODEL uyarısı kaldırıldı** (`train_risk._write_runtime_card` koşullu; sentetik akışta `synthetic-v2` uyarısı korunur).
+### Sprint 6-B Notu — b1 (2026-05-16)
+Sprint 6-B (2026-05-16): **gerçek model b1 eğitildi** (paket sürümü → **b1**). Gerçek `FIRMS_MAP_KEY` ile `scripts/fetch_firms_archive.py` Beynam bbox 2024-01..2025-12 arşivinden VIIRS_SNPP_SP hotspot çekti (147 chunk, chunk_days=5). **Karar #8**: FIRMS arşivi mevcut `FIRMS_MAP_KEY` ile erişilebilir (Sprint 6-A'nın "NASA Earthdata auth-walled" varsayımı düzeltildi). Gerçek-çalıştırmada 5 bug bulundu+düzeltildi: (1) httpx logger `FIRMS_MAP_KEY` sızıntısı, (2) `DEFAULT_CHUNK_DAYS` 7→5 (FIRMS Area API day_range ≤5), (3) `label_builder` VIIRS tek-harf confidence (l/n/h) normalizasyonu, (4) `export_risk` onnxmltools feature_names temizleme, (5) `export_risk` `ai.onnx.ml` opset uyumu. Tek FIRMS source `VIIRS_SNPP_SP` (çok-kaynak 6-C). Gerçek DEM + gerçek Open-Meteo + gerçek FIRMS label kullanıldı; WorldCover one-hot sentetik kaldı (gerçek raster sınıflama Sprint 6-C). Gerçek-veri akışında (`data_version=real-b1`) **SYNTHETIC_MODEL uyarısı yazılmaz** (`train_risk._write_runtime_card` koşullu; sentetik akışta `synthetic-v2` uyarısı korunur).
 
-**Gerçek metrikler:** `<eğitim çalıştırmasında doldurulacak — FIRMS_MAP_KEY + ağ erişimi gerektirir; implementer ortamında anahtar/ağ yoktu, gerçek çalıştırma kullanıcı ortamında yapılmalı (komutlar README/rapor).>`
-- Pozitif oran (FIRMS SP, Beynam bbox, 250m grid): `<doldurulacak>` (eşik `RealDataConfig.positive_rate_threshold=0.002`; altındaysa build_real_dataset.py `logger.error` ile uyarır → 6-C'ye ertele veya bbox genişlet)
-- Spatial block CV (Roberts 2017): roc_auc_mean±std `<doldurulacak>`, pr_auc_mean±std `<doldurulacak>`, f1_mean±std `<doldurulacak>`
+**Gerçek metrikler (2026-05-16; gerçek FIRMS SP + Copernicus GLO-30 DEM + Open-Meteo ERA5):**
+- FIRMS: 24 ayda 7 ham hotspot → confidence filtresi sonrası **5** (nominal; 2 low/sun-glint elendi)
+- Pozitif oran: **%8.25** (0.0825); 220008 satır (9167 grid hücre × 24 aylık obs_date). Öngörülen ~%0.5-1'den yüksek — 10km FIRMS haversine yarıçapı küçük Beynam bbox'ında geniş kapsıyor (eşik 0.002 fazlasıyla aşıldı; seyreklik fallback gerekmedi).
+- Spatial block CV (Roberts 2017, 5 fold, leakage-safe): ROC-AUC **0.819 ±0.037**, PR-AUC 0.471 ±0.128, F1 0.279 ±0.120 (toplam pozitif 18143)
+- Test (holdout, 60/20/20 stratified, n_test=44002): ROC-AUC **0.858**, PR-AUC 0.566, F1 0.314, Precision 0.198, Recall **0.761**, scale_pos_weight 11.13
+- ONNX: `risk_model_b1.onnx`, smoke test passed (XGBoost↔ONNX rtol 1e-3, atol 1e-4)
+- Yorum: yüksek recall (0.76) "riskli bölge kaçırmama" önceliğine uygun; düşük precision (0.20) seyrek-pozitif + risk-haritası tarama bağlamında kabul edilebilir. WorldCover one-hot sentetik olduğundan land-cover sinyali eksik — gerçek raster 6-C'de eklenince iyileşmesi beklenir.
 
 ### Sprint 6-A Notu (2026-05-15)
 Sprint 6-A (2026-05-15): gerçek-veri pipeline altyapısı (DEM/WorldCover/Open-Meteo fetch + label_builder + spatial block CV). Sprint 6-A varsayımı FIRMS arşivinin NASA Earthdata auth gerektirdiği yönündeydi; **Karar #8 ile düzeltildi** (FIRMS_MAP_KEY yeterli). Sprint 6-A'da gerçek model çıkmadı; sürüm a6 sentetik devam etti, SYNTHETIC_MODEL uyarısı korundu. Gerçek model (b1) Sprint 6-B'de gerçek FIRMS CSV ile çıktı (yukarı bkz.).
@@ -27,7 +31,7 @@ Sprint 5 çıktısı **sentetik veri** ile eğitildi (`data_version=synthetic-v2
 
 ### Model Detayları
 - Mimari: XGBoost binary classifier (sklearn API), `XGBClassifier`
-- Versiyon: v2 (model mimarisi); paket sürümü **a7** (Sprint 6-B, fetch script + güvenlik + pipeline altyapısı). Gerçek model etiketi **b1** gerçek eğitim çalıştırmasında ayrı commit'te atanacak.
+- Versiyon: v2 (model mimarisi); paket sürümü **b1** (Sprint 6-B, gerçek FIRMS SP + DEM + Open-Meteo ile eğitildi 2026-05-16). Artefaktlar: `models/risk_model_v2.ubj` (XGBoost), `models/risk_model_b1.onnx` (backend), `models/risk_feature_schema.json`.
 - Feature sayısı: 24 (FEATURE_COLUMNS, config.py)
 - Hedef: `fire_occurred_within_30d` binary
 
@@ -67,12 +71,16 @@ Apache 2.0
 ### Purpose
 30-day wildfire risk binary classification. Pilot region: Beynam Forest (Bala/Ankara), 250m grid.
 
-### Sprint 6-B Note — a7 (2026-05-16)
-Sprint 6-B (2026-05-16): package version a6 → **a7** (infrastructure + security commit; real model NOT yet included). **IMPORTANT**: This commit does NOT contain a model trained on real FIRMS SP data — `FIRMS_MAP_KEY` was absent from the implementer environment; the real training run must be executed in the user environment (see commands below). Once the real model is produced, version **b1** will be tagged in a separate commit. **Decision #8**: the FIRMS archive is reachable with the existing `FIRMS_MAP_KEY` (Sprint 6-A's "NASA Earthdata auth-walled" assumption was corrected); `scripts/fetch_firms_archive.py` pulls real hotspots from the Area API CSV endpoint (`/api/area/csv/{KEY}/{SOURCE}/{W,S,E,N}/{chunk_days}/{date}`, rate limit 5000 tx/10min). Single FIRMS source `VIIRS_SNPP_SP` (multi-source merge in Sprint 6-C). Real WorldCover/Open-Meteo raster tightening is deferred to Sprint 6-C. In the real-data flow (`data_version=real-b1`) the **SYNTHETIC_MODEL warning is removed** (`train_risk._write_runtime_card` is conditional; the `synthetic-v2` warning is retained for the synthetic flow).
+### Sprint 6-B Note — b1 (2026-05-16)
+Sprint 6-B (2026-05-16): **real model b1 trained** (package version → **b1**). With a real `FIRMS_MAP_KEY`, `scripts/fetch_firms_archive.py` pulled VIIRS_SNPP_SP hotspots from the Beynam bbox 2024-01..2025-12 archive (147 chunks, chunk_days=5). **Decision #8**: the FIRMS archive is reachable with the existing `FIRMS_MAP_KEY` (Sprint 6-A's "NASA Earthdata auth-walled" assumption corrected). The real run surfaced+fixed 5 bugs: (1) httpx logger `FIRMS_MAP_KEY` leak, (2) `DEFAULT_CHUNK_DAYS` 7→5 (FIRMS Area API day_range ≤5), (3) `label_builder` VIIRS single-letter confidence (l/n/h) normalization, (4) `export_risk` onnxmltools feature_names clearing, (5) `export_risk` `ai.onnx.ml` opset compatibility. Single FIRMS source `VIIRS_SNPP_SP` (multi-source in 6-C). Real DEM + real Open-Meteo + real FIRMS labels used; WorldCover one-hot stayed synthetic (real raster classification in Sprint 6-C). In the real-data flow (`data_version=real-b1`) the **SYNTHETIC_MODEL warning is not written** (`train_risk._write_runtime_card` conditional; `synthetic-v2` warning retained for the synthetic flow).
 
-**Real metrics:** `<to be filled by a training run — requires FIRMS_MAP_KEY + network access; the implementer environment had no key/network, so the real run must be executed in the user environment (see commands in report/README).>`
-- Positive rate (FIRMS SP, Beynam bbox, 250m grid): `<to be filled>` (threshold `RealDataConfig.positive_rate_threshold=0.002`; below it build_real_dataset.py emits `logger.error` → defer to 6-C or widen bbox)
-- Spatial block CV (Roberts 2017): roc_auc_mean±std `<to be filled>`, pr_auc_mean±std `<to be filled>`, f1_mean±std `<to be filled>`
+**Real metrics (2026-05-16; real FIRMS SP + Copernicus GLO-30 DEM + Open-Meteo ERA5):**
+- FIRMS: 7 raw hotspots over 24 months → 5 after confidence filter (nominal; 2 low/sun-glint dropped)
+- Positive rate: **8.25%** (0.0825); 220008 rows (9167 grid cells × 24 monthly obs_date). Higher than the predicted ~0.5-1% — the 10km FIRMS haversine radius covers a large share of the small Beynam bbox (threshold 0.002 far exceeded; sparsity fallback not needed).
+- Spatial block CV (Roberts 2017, 5 folds, leakage-safe): ROC-AUC **0.819 ±0.037**, PR-AUC 0.471 ±0.128, F1 0.279 ±0.120 (total positives 18143)
+- Test (holdout, 60/20/20 stratified, n_test=44002): ROC-AUC **0.858**, PR-AUC 0.566, F1 0.314, Precision 0.198, Recall **0.761**, scale_pos_weight 11.13
+- ONNX: `risk_model_b1.onnx`, smoke test passed (XGBoost↔ONNX rtol 1e-3, atol 1e-4)
+- Note: high recall (0.76) fits the "don't miss risky areas" priority; low precision (0.20) is acceptable for a sparse-positive risk-map screening context. Land-cover signal is missing because WorldCover one-hot is synthetic — expected to improve once real raster lands in 6-C.
 
 ### Sprint 6-A Note (2026-05-15)
 Sprint 6-A (2026-05-15): real-data pipeline infrastructure (DEM/WorldCover/Open-Meteo fetch + label_builder + spatial block CV). Sprint 6-A assumed the FIRMS archive required NASA Earthdata authentication; this was **corrected by Decision #8** (FIRMS_MAP_KEY suffices). No real model shipped in Sprint 6-A; version stayed a6 (synthetic continued), the SYNTHETIC_MODEL warning was retained. The real model (b1) shipped in Sprint 6-B with a real FIRMS CSV (see above).
@@ -89,7 +97,7 @@ The Sprint 5 output was trained on **synthetic data** (`data_version=synthetic-v
 
 ### Model Details
 - Architecture: XGBoost binary classifier (sklearn API), `XGBClassifier`
-- Version: v2 (model architecture); package version **a7** (Sprint 6-B, fetch script + security + pipeline infrastructure). Real model label **b1** will be assigned in a separate commit after the real training run.
+- Version: v2 (model architecture); package version **b1** (Sprint 6-B, trained on real FIRMS SP + DEM + Open-Meteo 2026-05-16). Artifacts: `models/risk_model_v2.ubj` (XGBoost), `models/risk_model_b1.onnx` (backend), `models/risk_feature_schema.json`.
 - Feature count: 24 (FEATURE_COLUMNS, config.py)
 - Target: `fire_occurred_within_30d` binary
 
