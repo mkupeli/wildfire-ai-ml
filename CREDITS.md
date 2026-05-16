@@ -18,6 +18,7 @@ This project is built on top of the following open-source libraries, datasets, a
 | Hugging Face datasets | Apache 2.0 | https://huggingface.co/docs/datasets | Dataset yükleme / dataset loading |
 | albumentations | MIT | https://albumentations.ai | Görüntü augmentasyonu / image augmentation |
 | NASA FIRMS | NASA Open Data Policy | https://firms.modaps.eosdis.nasa.gov | Aktif yangın hotspot / active fire hotspots |
+| NASA FIRMS SP arşiv (Standard Processing) | NASA FIRMS Open Data Policy (Public Domain) | https://firms.modaps.eosdis.nasa.gov/api/area/ | Sprint 6-B b1 gerçek-veri label kaynağı: VIIRS_SNPP_SP arşiv hotspot'ları (FIRMS_MAP_KEY ile, Karar #8) / Sprint 6-B b1 real-data label source: VIIRS_SNPP_SP archive hotspots |
 | Copernicus DEM (web) | CC BY 4.0 | https://dataspace.copernicus.eu | Topografya / topography |
 | ESA WorldCover (web) | CC BY 4.0 | https://esa-worldcover.org | Arazi örtüsü / land cover |
 | Copernicus DEM GLO-30 (AWS S3) | CC BY 4.0 © DLR/Airbus/ESA | s3://copernicus-dem-30m | Topografya / topography |

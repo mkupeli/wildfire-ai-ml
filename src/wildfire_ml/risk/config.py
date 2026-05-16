@@ -144,6 +144,13 @@ class RealDataConfig:
     obs_date_start: str = "2024-01-01"
     obs_date_end: str = "2025-12-31"
     spatial_cv_k: int = 5
+    # Sprint 6-B (Karar #8): FIRMS arşivi FIRMS_MAP_KEY ile erişilebilir.
+    # Tek FIRMS source — çok-kaynak birleştirme Sprint 6-C'ye bırakıldı.
+    firms_sp_source: str = "VIIRS_SNPP_SP"
+    firms_chunk_days: int = 7
+    # Beynam seyreklik: pozitif oran bu eşiğin altındaysa model eğitimi
+    # riskli (build_real_dataset.py logger.error ile uyarır).
+    positive_rate_threshold: float = 0.002
 
 
 @dataclass

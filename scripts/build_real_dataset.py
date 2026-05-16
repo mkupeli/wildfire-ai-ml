@@ -2,25 +2,25 @@
 """Beynam gerçek-veri dataset builder (Sprint 6-A altyapı).
 
 DEM (Copernicus GLO-30) + WorldCover v200 + Open-Meteo Historical auth-free
-kaynaklardan feature çeker; FIRMS arşivi NASA Earthdata auth-walled
-olduğundan opsiyonel `--firms-csv <path>` ile sağlanır:
+kaynaklardan feature çeker; FIRMS arşivi FIRMS_MAP_KEY ile erişilebilir
+(Sprint 6-A varsayımı düzeltildi, bkz. Karar #8) — opsiyonel
+`--firms-csv <path>` (scripts/fetch_firms_archive.py çıktısı) ile sağlanır:
 
   * --firms-csv verilirse → label_builder.build_labels ile GERÇEK label +
-    fire-history feature; data_version = "real-v0".
+    fire-history feature; data_version = "real-b1".
   * verilmezse → WARNING "FIRMS arşiv yok — sentetik fallback label";
     data_version = "real-v0-no-firms"; TARGET ve fire-history sütunları
     sentetik üretici ile doldurulur (pipeline doğrulama amaçlı).
 
-Sprint 6-A KAPSAM: GERÇEK MODEL ÇIKMAZ. Bu script altyapıyı kurar; gerçek
-model (b1) Sprint 6-B'de FIRMS CSV ile. Çıktı CSV tüm FEATURE_COLUMNS +
-TARGET_COLUMN + [lat, lon, obs_date] içerir (spatial_block_split lat ister).
+Sprint 6-B (Karar #8): --firms-csv (fetch_firms_archive.py çıktısı, gerçek
+FIRMS SP) verildiğinde data_version=real-b1 gerçek-veri dataset'i üretir.
+Çıktı CSV tüm FEATURE_COLUMNS + TARGET_COLUMN + [lat, lon, obs_date] içerir
+(spatial_block_split lat ister).
 
 Karar #6 PREPROCESS_SYMMETRIC: grid adımı backend
 risk_feature_service._build_grid_coords ile aynı (deg_per_m * resolution_m,
 np.arange(min + step/2, max, step), meshgrid). FIRMS 10km haversine
 label_builder üzerinden (backend ile simetrik).
-
-GERÇEK AĞDAN ÇALIŞTIRILMAZ (Sprint 6-A — tester network mock'layacak).
 """
 from __future__ import annotations
 
@@ -83,11 +83,18 @@ def build_grid(cfg: RiskConfig) -> pd.DataFrame:
     )
 
 
-def obs_date_slices(real_cfg: RealDataConfig) -> list[pd.Timestamp]:
-    """obs_date örnekleme: start..end her ayın 1'i (24 dilim 2024-01..2025-12)."""
+def obs_date_slices(
+    real_cfg: RealDataConfig, obs_freq: str = "MS"
+) -> list[pd.Timestamp]:
+    """obs_date örnekleme: start..end aralığı `obs_freq` frekansıyla.
+
+    obs_freq pandas date_range freq parametresi (default "MS" = her ayın
+    1'i → 24 dilim 2024-01..2025-12; "2W" = 2 haftalık dilimler — daha
+    yoğun örnekleme Beynam seyreklik riskini azaltabilir).
+    """
     start = pd.Timestamp(real_cfg.obs_date_start).replace(day=1)
     end = pd.Timestamp(real_cfg.obs_date_end)
-    return list(pd.date_range(start=start, end=end, freq="MS"))
+    return list(pd.date_range(start=start, end=end, freq=obs_freq))
 
 
 def attach_real_features(
@@ -188,14 +195,20 @@ def main(argv: list[str] | None = None) -> int:
         description="Beynam gerçek-veri dataset builder (Sprint 6-A)"
     )
     parser.add_argument("--firms-csv", default=None,
-                        help="FIRMS arşiv CSV (NASA Earthdata auth-walled; "
-                             "yoksa sentetik fallback label).")
+                        help="FIRMS arşiv CSV (fetch_firms_archive.py çıktısı, "
+                             "FIRMS_MAP_KEY ile — Karar #8; yoksa sentetik "
+                             "fallback label).")
     parser.add_argument("--dem", default="data/beynam/dem_beynam.tif")
     parser.add_argument("--worldcover", default="data/beynam/worldcover_beynam.tif")
     parser.add_argument("--openmeteo",
                         default="data/raw/openmeteo/beynam_2024_2025.csv")
     parser.add_argument("--out", default="data/processed/beynam_real_dataset.csv")
     parser.add_argument("--grid-resolution-m", type=int, default=250)
+    parser.add_argument(
+        "--obs-freq", default="MS",
+        help="obs_date örnekleme frekansı (pandas date_range freq). "
+             "default 'MS' (aylık); '2W' = 2 haftalık (daha yoğun).",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -204,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     real_cfg = RealDataConfig()
 
     grid = build_grid(risk_cfg)
-    slices = obs_date_slices(real_cfg)
+    slices = obs_date_slices(real_cfg, obs_freq=args.obs_freq)
     logger.info(
         "Grid hücre=%d, obs_date dilim=%d → toplam satır=%d",
         len(grid), len(slices), len(grid) * len(slices),
@@ -231,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("FIRMS CSV verildi: %s — gerçek label üretiliyor.", firms_path)
         firms_df = pd.read_csv(firms_path, comment="#")
         df = build_labels(df, firms_df, obs_date_col="obs_date", cfg=real_cfg)
-        data_version = "real-v0"
+        data_version = "real-b1"
         label_source = "firms_archive"
     else:
         logger.warning(
@@ -262,6 +275,31 @@ def main(argv: list[str] | None = None) -> int:
     df.to_csv(out_path, index=False)
 
     pos_rate = float((df[TARGET_COLUMN] == 1).mean()) if len(df) else 0.0
+
+    # Beynam seyreklik kontrolü — yalnızca gerçek FIRMS dalında anlamlı
+    # (sentetik fallback ~%15 hedefli). Pozitif oran eşiğin altındaysa
+    # model eğitimi istatistiksel olarak riskli.
+    if label_source == "firms_archive" and pos_rate < real_cfg.positive_rate_threshold:
+        logger.error(
+            "pozitif oran %.4f < eşik (%.4f) — model eğitimi riskli; "
+            "6-C'ye ertele veya bbox genişlet",
+            pos_rate, real_cfg.positive_rate_threshold,
+        )
+
+    if label_source == "firms_archive":
+        sprint = "6-B"
+        note = (
+            "Sprint 6-B: gerçek FIRMS SP label + gerçek DEM ile dataset "
+            "(data_version=real-b1, Karar #8). WorldCover/Open-Meteo gerçek "
+            "raster sıkılaştırma Sprint 6-C'ye bırakıldı."
+        )
+    else:
+        sprint = "6-A"
+        note = (
+            "Sprint 6-A altyapı; gerçek model çıkmadı (a6 sentetik devam, "
+            "SYNTHETIC_MODEL uyarısı korunuyor). Gerçek model b1 Sprint 6-B."
+        )
+
     meta = {
         "data_version": data_version,
         "label_source": label_source,
@@ -269,6 +307,8 @@ def main(argv: list[str] | None = None) -> int:
         "n_grid_cells": int(len(grid)),
         "n_obs_date_slices": int(len(slices)),
         "positive_rate": pos_rate,
+        "positive_rate_threshold": real_cfg.positive_rate_threshold,
+        "obs_freq": args.obs_freq,
         "grid_resolution_m": args.grid_resolution_m,
         "bbox": {
             "lon_min": risk_cfg.beynam_lon_min,
@@ -277,11 +317,8 @@ def main(argv: list[str] | None = None) -> int:
             "lat_max": risk_cfg.beynam_lat_max,
         },
         "firms_csv": str(args.firms_csv) if args.firms_csv else None,
-        "sprint": "6-A",
-        "note": (
-            "Sprint 6-A altyapı; gerçek model çıkmadı (a6 sentetik devam, "
-            "SYNTHETIC_MODEL uyarısı korunuyor). Gerçek model b1 Sprint 6-B."
-        ),
+        "sprint": sprint,
+        "note": note,
     }
     meta_path = out_path.with_suffix(".meta.json")
     meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")

@@ -144,7 +144,11 @@ def test_network_calls_mocked(tmp_path: Path) -> None:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 def test_firms_csv_real_labels(tmp_path: Path) -> None:
-    """--firms-csv verilince data_version='real-v0', label_source='firms_archive'.
+    """--firms-csv verilince data_version='real-b1', label_source='firms_archive'.
+
+    Sprint 6-B Karar #8 (kasıtlı değişiklik): data_version artık 'real-b1'
+    (önceki 'real-v0' Sprint 6-A taslak değeriydi; architect bağlayıcı kararla
+    'real-b1' oldu). Bu test kasıtlı olarak güncellendi — regression değil.
 
     NOT: Bu yol (FIRMS CSV var) aynı BUG B6A-01'e çarpmaz çünkü build_labels()
     df'e fire_occurred_within_30d ekler. FIRMS CSV yolu test edilebilir durumda.
@@ -174,8 +178,10 @@ def test_firms_csv_real_labels(tmp_path: Path) -> None:
     meta_path = out_csv.with_suffix(".meta.json")
     assert meta_path.exists(), f".meta.json bulunamadı: {meta_path}"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    assert meta.get("data_version") == "real-v0", (
-        f"FIRMS CSV verilince data_version='real-v0' beklendi, got {meta.get('data_version')!r}"
+    # Sprint 6-B Karar #8: data_version="real-b1" (architect bağlayıcı karar)
+    assert meta.get("data_version") == "real-b1", (
+        f"FIRMS CSV verilince data_version='real-b1' beklendi, got {meta.get('data_version')!r}. "
+        "Sprint 6-B Karar #8: build_real_dataset.py FIRMS dalı data_version='real-b1' set eder."
     )
     assert meta.get("label_source") == "firms_archive", (
         f"label_source='firms_archive' beklendi, got {meta.get('label_source')!r}"

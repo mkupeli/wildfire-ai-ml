@@ -189,8 +189,13 @@ def train_risk(
         "trained_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # Runtime model card
-    _write_runtime_card(output_dir / "risk_model_v2_card.md", metrics, xgb_cfg)
+    # Runtime model card — SYNTHETIC_MODEL uyarısı data_version'a koşullu.
+    _write_runtime_card(
+        output_dir / "risk_model_v2_card.md",
+        metrics,
+        xgb_cfg,
+        data_version=risk_cfg.data_version,
+    )
 
     # T2: schema.json kopyala — Sprint 4-C backend `models/risk_feature_schema.json` okuyacak.
     import shutil
@@ -210,10 +215,24 @@ def train_risk(
     return metrics
 
 
-def _write_runtime_card(path: Path, metrics: dict, xgb_cfg: XGBoostConfig) -> None:
+def _write_runtime_card(
+    path: Path,
+    metrics: dict,
+    xgb_cfg: XGBoostConfig,
+    data_version: str = "synthetic-v2",
+) -> None:
+    """Runtime model card yaz.
+
+    SYNTHETIC_MODEL uyarısı (`Sentetik veri ile eğitildi`) yalnızca sentetik
+    akışta (`synthetic-v2`) yazılır. Gerçek-veri akışında (`real-b1`, Karar
+    #8: gerçek FIRMS SP label + gerçek DEM) uyarı YAZILMAZ; bunun yerine
+    gerçek-veri notu yazılır. Default `synthetic-v2` → mevcut sentetik akış
+    davranışı korunur (geri uyumlu).
+    """
     lines = [
         "# Runtime Model Card — risk_model_v2",
         f"Trained: {metrics['trained_at']}",
+        f"Data version: {data_version}",
         f"Test metrics: ROC-AUC={metrics['roc_auc']:.4f}, PR-AUC={metrics['pr_auc']:.4f}, "
         f"F1={metrics['f1']:.4f}, Precision={metrics['precision']:.4f}, Recall={metrics['recall']:.4f}",
         f"n_train={metrics['n_train']}, n_val={metrics['n_val']}, n_test={metrics['n_test']}",
@@ -221,8 +240,18 @@ def _write_runtime_card(path: Path, metrics: dict, xgb_cfg: XGBoostConfig) -> No
         f"Hyperparams: max_depth={xgb_cfg.max_depth}, lr={xgb_cfg.learning_rate}, "
         f"n_estimators={xgb_cfg.n_estimators}, eval_metric={xgb_cfg.eval_metric}",
         "",
-        "Sentetik veri ile eğitildi — production değil. Bkz. src/wildfire_ml/risk/model_card.md",
     ]
+    if data_version == "synthetic-v2":
+        lines.append(
+            "Sentetik veri ile eğitildi — production değil. "
+            "Bkz. src/wildfire_ml/risk/model_card.md"
+        )
+    else:
+        lines.append(
+            f"Gerçek-veri akışı (data_version={data_version}, Karar #8: "
+            "gerçek FIRMS SP label + gerçek DEM). SYNTHETIC_MODEL uyarısı "
+            "uygulanmaz. Bkz. src/wildfire_ml/risk/model_card.md"
+        )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -238,6 +267,12 @@ def main() -> None:
         help="Spatial block CV (Roberts 2017) ile mean±std metrik döndür; "
              "model artefaktı kaydetmez. Default: stratified random split.",
     )
+    parser.add_argument(
+        "--data-version", type=str, default="synthetic-v2",
+        help="Dataset sürümü. 'synthetic-v2' (default) → SYNTHETIC_MODEL "
+             "uyarısı yazılır; 'real-b1' (Karar #8: gerçek FIRMS SP + DEM) "
+             "→ uyarı yazılmaz. --csv-path gerçek dataset ise 'real-b1' verin.",
+    )
     parser.add_argument("--n-estimators", type=int, default=None)
     parser.add_argument("--max-depth", type=int, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
@@ -245,7 +280,11 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    risk_cfg = RiskConfig(seed=args.seed, n_samples=args.n_samples)
+    risk_cfg = RiskConfig(
+        seed=args.seed,
+        n_samples=args.n_samples,
+        data_version=args.data_version,
+    )
     xgb_cfg = XGBoostConfig(
         n_estimators=args.n_estimators or XGBoostConfig().n_estimators,
         max_depth=args.max_depth or XGBoostConfig().max_depth,
