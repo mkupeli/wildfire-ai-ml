@@ -42,6 +42,7 @@ if str(_SRC) not in sys.path:
 from wildfire_ml.risk.config import (  # noqa: E402
     FEATURE_COLUMNS,
     TARGET_COLUMN,
+    WORLDCOVER_CLASSES,
     RealDataConfig,
     RiskConfig,
 )
@@ -173,9 +174,30 @@ def attach_real_features(
                     df["wind_speed_ms"].to_numpy(),
                 )
             logger.info("Open-Meteo feature'ları işlendi: %s", openmeteo_csv)
-            logger.warning(
-                "WorldCover land-cover one-hot Sprint 6-A iskelet: sentetik "
-                "dağılım korunuyor; gerçek raster sınıflama b1'de (Sprint 6-B)."
+
+            # WorldCover gerçek raster one-hot (Sprint 6-C). ESA WorldCover
+            # v200 sınıf kodları → WORLDCOVER_CLASSES one-hot indeksi. 70
+            # (snow/ice), 80 (water), 95 (mangrove) one-hot şemasında yok ve
+            # Beynam'da görülmez → eşleşmeyen kod tüm one-hot = 0 (bilinmeyen).
+            esa_to_idx = {10: 0, 20: 1, 30: 2, 40: 3, 50: 4, 60: 5, 90: 6, 100: 7}
+            with rasterio.open(worldcover_path) as wc:
+                wrows, wcols = rasterio.transform.rowcol(
+                    wc.transform, df["lon"].to_numpy(), df["lat"].to_numpy()
+                )
+                wband = wc.read(1)
+                wrows = np.clip(wrows, 0, wband.shape[0] - 1)
+                wcols = np.clip(wcols, 0, wband.shape[1] - 1)
+                wc_codes = wband[wrows, wcols]
+            lc_idx = np.full(n, -1, dtype=np.int64)
+            for code, idx in esa_to_idx.items():
+                lc_idx[wc_codes == code] = idx
+            for i, cls in enumerate(WORLDCOVER_CLASSES):
+                df[cls] = (lc_idx == i).astype(np.int8)
+            n_unmapped = int((lc_idx == -1).sum())
+            logger.info(
+                "WorldCover gerçek raster one-hot tamamlandı: %s "
+                "(%d/%d eşleşmeyen kod → all-zero)",
+                worldcover_path, n_unmapped, n,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
