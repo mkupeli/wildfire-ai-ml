@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -38,9 +39,13 @@ from sklearn.metrics import (
 )
 from torch.utils.data import DataLoader
 
-from wildfire_ml.data.dataset import FireDataset
-from wildfire_ml.data.transforms import build_transforms
-from wildfire_ml.models.smoke_detector import SmokeDetector
+# Dogrudan `python scripts/train_smoke_detector.py` calistirildiginda paket src/ altinda
+# kaldigi icin sys.path'e eklenmez (sadece pytest pythonpath=["src"] biliyordu) -> bootstrap.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from wildfire_ml.data.dataset import FireDataset  # noqa: E402
+from wildfire_ml.data.transforms import build_transforms  # noqa: E402
+from wildfire_ml.models.smoke_detector import SmokeDetector  # noqa: E402
 
 
 @dataclass
