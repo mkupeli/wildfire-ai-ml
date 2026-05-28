@@ -62,7 +62,7 @@ def test_compute_pos_weight_zero_positives_raises():
 
 
 def test_transforms_random_resized_crop_scale():
-    """RandomResizedCrop scale=(0.6, 1.0) olmali (tur 2 karari)."""
+    """RandomResizedCrop scale=(0.8, 1.0) olmali (tur 3 karari — tur 2'deki 0.6 geri alindi)."""
     from wildfire_ml.data.transforms import build_transforms
 
     pipeline = build_transforms("train")
@@ -74,5 +74,5 @@ def test_transforms_random_resized_crop_scale():
     assert rrc is not None, "RandomResizedCrop train pipeline'inda olmali"
     scale = getattr(rrc, "scale", None)
     assert scale is not None
-    assert abs(scale[0] - 0.6) < 1e-6, f"scale[0] 0.6 olmali, got {scale[0]}"
+    assert abs(scale[0] - 0.8) < 1e-6, f"scale[0] 0.8 olmali, got {scale[0]}"
     assert abs(scale[1] - 1.0) < 1e-6, f"scale[1] 1.0 olmali, got {scale[1]}"

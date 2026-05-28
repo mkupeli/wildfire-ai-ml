@@ -29,12 +29,13 @@ def build_transforms(split: str = "train"):
         except TypeError:
             fog = A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.15)
         # RandomResizedCrop API: >=1.4.18 size=(h,w); eski versiyon height+width
-        # scale=(0.6, 1.0) — tur 2 (architect karari): daha agresif crop -> daha cesitli
-        # bbox kapsamlari, kucuk smoke patch'lerine direnc artar.
+        # scale=(0.8, 1.0) — tur 3 (architect karari): tur 2'deki (0.6,1.0) ROC-AUC'ye
+        # hic yansimadi ve lokal duman bolgesini tamamen kirpip smoke=1 etiketini koruyarak
+        # gurultu uretiyordu -> muhafazakar degere geri alindi.
         try:
-            rrc = A.RandomResizedCrop(size=(IMG_SIZE, IMG_SIZE), scale=(0.6, 1.0))
+            rrc = A.RandomResizedCrop(size=(IMG_SIZE, IMG_SIZE), scale=(0.8, 1.0))
         except (TypeError, ValueError):
-            rrc = A.RandomResizedCrop(height=IMG_SIZE, width=IMG_SIZE, scale=(0.6, 1.0))
+            rrc = A.RandomResizedCrop(height=IMG_SIZE, width=IMG_SIZE, scale=(0.8, 1.0))
         # Resize API benzer: yeni surumde tek-arg veya size=
         return A.Compose([
             rrc,

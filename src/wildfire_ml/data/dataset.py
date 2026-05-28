@@ -94,8 +94,9 @@ class FireDataset(Dataset):
     def _load_dfire(self, split: str) -> list[tuple[Path, int]]:
         """Load D-Fire YOLO format. Returns (image_path, label) pairs.
 
-        YOLO class_id: 0=fire, 1=smoke, 2=none
-        Label: 1 if any line has class_id in {0,1}, else 0
+        YOLO class_id: 0=smoke, 1=fire (sayedgamal99/smoke-fire-detection-yolo
+        data.yaml teyitli; class 2/none yok). Pozitif sinif = "duman VEYA yangin
+        gorunur" (architect karari): annotation dolu -> 1, bos/eksik -> 0.
         """
         dfire_root = self.root / "dfire"
         images_dir = dfire_root / "images" / split
