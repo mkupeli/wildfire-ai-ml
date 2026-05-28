@@ -28,8 +28,16 @@ def build_transforms(split: str = "train"):
             fog = A.RandomFog(fog_coef_range=(0.1, 0.3), p=0.15)
         except TypeError:
             fog = A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.15)
+        # RandomResizedCrop API: >=1.4.18 size=(h,w); eski versiyon height+width
+        # scale=(0.6, 1.0) — tur 2 (architect karari): daha agresif crop -> daha cesitli
+        # bbox kapsamlari, kucuk smoke patch'lerine direnc artar.
+        try:
+            rrc = A.RandomResizedCrop(size=(IMG_SIZE, IMG_SIZE), scale=(0.6, 1.0))
+        except (TypeError, ValueError):
+            rrc = A.RandomResizedCrop(height=IMG_SIZE, width=IMG_SIZE, scale=(0.6, 1.0))
+        # Resize API benzer: yeni surumde tek-arg veya size=
         return A.Compose([
-            A.RandomResizedCrop(height=IMG_SIZE, width=IMG_SIZE, scale=(0.8, 1.0)),
+            rrc,
             A.HorizontalFlip(p=0.5),
             A.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.1, p=0.5),
             A.GaussianBlur(blur_limit=(3, 5), p=0.2),
@@ -38,8 +46,12 @@ def build_transforms(split: str = "train"):
             ToTensorV2(),
         ])
     else:  # val / test
+        try:
+            resize = A.Resize(height=IMG_SIZE, width=IMG_SIZE, interpolation=cv2.INTER_LINEAR)
+        except (TypeError, ValueError):
+            resize = A.Resize(IMG_SIZE, IMG_SIZE, interpolation=cv2.INTER_LINEAR)
         return A.Compose([
-            A.Resize(height=IMG_SIZE, width=IMG_SIZE, interpolation=cv2.INTER_LINEAR),
+            resize,
             A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
             ToTensorV2(),
         ])

@@ -27,6 +27,9 @@ models/*.pth
 models/*.onnx
 models/*.bin
 
+# Training artifacts (checkpoint + log)
+artifacts/
+
 # Notebooks
 .ipynb_checkpoints/
 
